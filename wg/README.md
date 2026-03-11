@@ -1,38 +1,22 @@
-# 🌍 Weather Globe v3.0 — World Explorer
+# Weather Globe v3.0 — World Explorer
 
-## 📁 Folder Structure
+## Folder Structure
 
-```
-weather-globe/
-│
-├── index.html          ← Open this in your browser (double-click)
-│
-└── js/
-    ├── config.js       ← 🔑 EDIT THIS FIRST — put your API keys here
-    ├── geo.js          ← World map data (auto-loads from CDN)
-    ├── cities.js       ← City photos, descriptions, webcam links
-    ├── globe.js        ← 3D spinning globe engine (Canvas)
-    ├── weather.js      ← Live weather via OpenWeatherMap
-    ├── flights.js      ← ✈️ Flight search via Amadeus API
-    ├── map.js          ← 🗺️ Interactive map via Leaflet.js
-    └── videos.js       ← 🎥 Travel videos via YouTube
-```
 
----
 
-## 🚀 Quick Start
+## Quick Start
 
 1. **Unzip** this folder somewhere on your computer
 2. Open **`js/config.js`** in any text editor
 3. The app works in **demo mode immediately** — no API keys needed to start!
 4. Double-click **`index.html`** to open in your browser
 
-> ⚠️ If the globe doesn't appear, try opening with **Google Chrome** or **Firefox**.
+> If the globe doesn't appear, try opening with **Google Chrome** or **Firefox**.
 > Safari may block local file access.
 
 ---
 
-## 🔑 API Keys (All Free)
+## API Keys (All Free)
 
 ### OpenWeatherMap — Live Weather
 - Already included (free key)
@@ -53,23 +37,22 @@ weather-globe/
 
 ---
 
-## ✨ Features
+## Features
 
 | Tab | What it does |
 |-----|-------------|
-| 🏙 **Cities** | City photos from Unsplash + live weather per city |
-| 📷 **Webcams** | Live webcam previews linking to Windy/EarthCam |
-| 🌡 **Weather** | Full weather + 5-day forecast (OpenWeatherMap) |
-| 🗺️ **Map** | Interactive map — click anywhere for local weather |
-| ✈️ **Flights** | Cheapest flights from your airport (Ryanair, easyJet etc.) |
-| 🎥 **Videos** | Travel videos with inline YouTube player |
+| **Cities** | City photos from Unsplash + live weather per city |
+| **Webcams** | Live webcam previews linking to Windy/EarthCam |
+| **Weather** | Full weather + 5-day forecast (OpenWeatherMap) |
+| **Map** | Interactive map — click anywhere for local weather |
+| **Flights** | Cheapest flights from your airport (Ryanair, easyJet etc.) |
+| **Videos** | Travel videos with inline YouTube player |
 
 ---
 
-## 🌐 Deployment (Host it free)
+## Deployment (Host it free)
 
 - **GitHub Pages**: Push to GitHub, enable Pages in Settings
 - **Netlify**: Drag the folder to netlify.com/drop
 - **Vercel**: `vercel deploy` in the folder
 
-No backend or server needed — it's a pure static site.
