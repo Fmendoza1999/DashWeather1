@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weather Globe — World Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Unbounded:wght@200;300;400;700;900&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{--bg:#03070f;--glow:#00e5ff;--glow2:#0055cc;--accent:#ff6b35;--green:#00ff9d;--text:#ddeeff;--muted:#3a6080;--card:rgba(4,18,36,0.9);--border:rgba(0,180,230,0.13);}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;}
+body{font-family:'Space Mono',monospace;background:var(--bg);color:var(--text);}
+#starfield{position:fixed;inset:0;pointer-events:none;z-index:0;}
+.app{position:relative;z-index:1;display:grid;grid-template-rows:52px 1fr;grid-template-columns:1fr 420px;width:100vw;height:100vh;min-height:0;}
+.globe-section,.wpanel{min-height:0;min-width:0;}
+header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:0 32px;border-bottom:1px solid var(--border);background:rgba(3,7,15,0.97);backdrop-filter:blur(12px);z-index:10;}
+.brand{font-family:'Unbounded',sans-serif;font-size:13px;font-weight:700;letter-spacing:3px;color:var(--glow);}
+.brand em{color:var(--accent);font-style:normal;}
+.hstatus{font-size:9px;color:var(--muted);letter-spacing:2px;display:flex;align-items:center;gap:8px;}
+.dlive{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 1.8s ease-in-out infinite;}
+.version-badge{background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.2);border-radius:100px;padding:2px 8px;color:var(--glow);font-size:8px;}
+.globe-section{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:16px;position:relative;overflow:hidden;}
+.globe-section::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 50%,rgba(0,60,140,0.07) 0%,transparent 70%);pointer-events:none;}
+.globe-wrap{position:relative;}
+.orbit{position:absolute;border-radius:50%;border:1px solid rgba(0,200,255,0.07);pointer-events:none;animation:ospin linear infinite;}
+.o1{inset:-20px;animation-duration:22s;}.o2{inset:-42px;border-style:dashed;border-color:rgba(0,200,255,0.04);animation-duration:38s;animation-direction:reverse;}.o3{inset:-65px;border-color:rgba(255,107,53,0.03);animation-duration:55s;}
+#globe{border-radius:50%;cursor:grab;display:block;filter:drop-shadow(0 0 45px rgba(0,160,255,0.22)) drop-shadow(0 0 90px rgba(0,70,180,0.12));}
+#globe:active{cursor:grabbing;}
+.sel-bar{display:flex;align-items:center;gap:10px;background:rgba(0,20,45,0.85);border:1px solid var(--border);border-radius:100px;padding:7px 7px 7px 18px;min-width:360px;}
+.sel-lbl{flex:1;font-family:'Unbounded',sans-serif;font-size:12px;color:var(--glow);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sel-lbl.ph{color:var(--muted);font-size:10px;font-family:'Space Mono',monospace;}
+.gbtn{background:linear-gradient(135deg,var(--glow2),var(--glow));border:none;border-radius:100px;padding:10px 18px;color:#03070f;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;letter-spacing:2px;cursor:pointer;text-transform:uppercase;transition:all .2s;white-space:nowrap;}
+.gbtn:hover{transform:scale(1.06);box-shadow:0 0 18px rgba(0,200,255,0.28);}
+.explore-btn{background:linear-gradient(135deg,#a0300a,var(--accent));color:#fff;}
+.explore-btn:hover{box-shadow:0 0 18px rgba(255,107,53,0.4);}
+.hint{font-size:9px;color:var(--muted);letter-spacing:1px;text-align:center;}
+.wpanel{border-left:1px solid var(--border);background:linear-gradient(180deg,rgba(3,12,28,.98),rgba(3,7,15,.99));display:flex;flex-direction:column;padding:24px 22px;gap:18px;overflow-y:auto;}
+.slbl{font-size:8px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:-6px;}
+.main-card{background:rgba(0,25,55,.55);border:1px solid rgba(0,200,255,.1);border-radius:16px;padding:22px 18px;text-align:center;position:relative;overflow:hidden;min-height:210px;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.main-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(0,200,255,.06),transparent 60%);}
+.wico{font-size:60px;animation:float 4s ease-in-out infinite;}
+.wtemp{font-family:'Unbounded',sans-serif;font-size:50px;font-weight:900;line-height:1;background:linear-gradient(135deg,#fff 20%,var(--glow) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:8px 0 4px;}
+.wdesc{font-size:9px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;}
+.wcity{font-family:'Unbounded',sans-serif;font-size:14px;color:var(--text);margin-top:6px;}
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.scard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 11px;transition:border-color .2s;}
+.scard:hover{border-color:rgba(0,200,255,.22);}
+.slb{font-size:7px;letter-spacing:2px;color:var(--muted);margin-bottom:4px;}
+.svl{font-family:'Unbounded',sans-serif;font-size:17px;font-weight:700;}
+.sun{font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;}
+.frow{display:flex;gap:7px;}
+.fd{flex:1;background:var(--card);border:1px solid var(--border);border-radius:11px;padding:10px 5px;text-align:center;transition:all .2s;}
+.fd:hover{background:rgba(0,200,255,.06);transform:translateY(-2px);}
+.fdd{font-size:7px;letter-spacing:1px;color:var(--muted);}
+.fdi{font-size:18px;margin:4px 0;}
+.fdt{font-size:11px;font-weight:700;font-family:'Unbounded',sans-serif;}
+.fdl{font-size:8px;color:var(--muted);margin-top:1px;}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:36px 16px;border:1px dashed rgba(0,180,230,.1);border-radius:16px;flex:1;}
+.eico{font-size:42px;opacity:.3;}
+.empty p{font-size:9px;letter-spacing:1px;color:var(--muted);line-height:1.9;text-align:center;}
+.spin{width:34px;height:34px;border:2px solid rgba(0,200,255,.15);border-top-color:var(--glow);border-radius:50%;animation:spin .7s linear infinite;}
+.loading{display:flex;flex-direction:column;align-items:center;gap:12px;padding:44px 0;}
+.loading p{font-size:9px;letter-spacing:3px;color:var(--muted);}
+.errc{background:rgba(255,50,50,.05);border:1px solid rgba(255,50,50,.2);border-radius:14px;padding:20px;text-align:center;}
+.errc p{font-size:10px;color:#ff6b6b;letter-spacing:1px;line-height:1.8;}
+.ai-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(0,200,255,.07);border:1px solid rgba(0,200,255,.15);border-radius:100px;padding:4px 12px;font-size:8px;letter-spacing:2px;color:var(--muted);}
+.ai-dot{width:5px;height:5px;border-radius:50%;background:var(--glow);box-shadow:0 0 6px var(--glow);}
+.no-content{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:60px 20px;text-align:center;color:var(--muted);}
+.no-content .nc-icon{font-size:48px;opacity:0.3;}
+.no-content p{font-size:10px;letter-spacing:1px;line-height:2;}
+#tip{position:fixed;pointer-events:none;z-index:999;background:rgba(0,12,30,.96);border:1px solid var(--glow);color:var(--glow);font-family:'Space Mono',monospace;font-size:10px;padding:5px 12px;border-radius:6px;letter-spacing:1px;white-space:nowrap;display:none;box-shadow:0 0 10px rgba(0,200,255,.18);}
+
+/* MASCOT */
+#mascotPopup{position:fixed;bottom:32px;right:32px;z-index:9000;display:flex;align-items:flex-end;gap:12px;opacity:0;transform:translateY(30px) scale(0.85);transition:opacity .45s cubic-bezier(.34,1.56,.64,1),transform .45s cubic-bezier(.34,1.56,.64,1);pointer-events:none;}
+#mascotPopup.visible{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;}
+#mascotPopup.hiding{opacity:0;transform:translateY(20px) scale(0.9);}
+.mascot-bubble{background:rgba(3,12,30,0.97);border:1px solid rgba(0,200,255,0.35);border-radius:20px 20px 4px 20px;padding:18px 20px;max-width:280px;box-shadow:0 12px 40px rgba(0,100,200,0.3);position:relative;}
+.mascot-bubble::after{content:'';position:absolute;bottom:-8px;right:16px;border:8px solid transparent;border-top-color:rgba(0,200,255,0.35);border-bottom:none;}
+.mascot-greeting{font-family:'Unbounded',sans-serif;font-size:13px;font-weight:700;color:var(--glow);margin-bottom:4px;}
+.mascot-meaning{font-size:8px;letter-spacing:1px;color:var(--muted);margin-bottom:10px;}
+.mascot-typed{font-size:10px;line-height:1.8;color:var(--text);min-height:36px;}
+.mascot-cursor{display:inline-block;width:2px;height:14px;background:var(--glow);vertical-align:middle;margin-left:2px;animation:blink .6s step-end infinite;}
+.mascot-buttons{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+.mascot-btn{flex:1;min-width:80px;padding:8px 10px;border-radius:100px;font-family:'Space Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;transition:all .2s;text-align:center;}
+.mascot-btn-yes{background:linear-gradient(135deg,var(--glow2),var(--glow));color:#03070f;}
+.mascot-btn-yes:hover{transform:scale(1.05);}
+.mascot-btn-no{background:rgba(255,107,53,0.12);border:1px solid rgba(255,107,53,0.25)!important;color:var(--accent);}
+.mascot-doll{flex-shrink:0;cursor:pointer;user-select:none;animation:dollWave 1.2s ease-in-out infinite;transform-origin:bottom center;filter:drop-shadow(0 4px 12px rgba(0,200,255,0.25));}
+.mascot-doll:hover{animation:dollJump .4s ease;}
+
+/* OVERLAY */
+.city-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;}
+.city-overlay.hidden{display:none;}
+.co-backdrop{position:absolute;inset:0;background:rgba(1,5,15,0.92);backdrop-filter:blur(8px);}
+.co-panel{position:relative;z-index:1;background:linear-gradient(160deg,rgba(3,12,30,0.99),rgba(3,7,15,0.99));border:1px solid rgba(0,180,230,0.2);border-radius:24px;width:92vw;max-width:1160px;height:90vh;max-height:860px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 0 80px rgba(0,100,200,0.15);}
+.co-header{display:flex;align-items:center;justify-content:space-between;padding:20px 28px;border-bottom:1px solid var(--border);background:rgba(0,15,35,0.6);flex-shrink:0;}
+.co-country-info{display:flex;align-items:center;gap:16px;}
+.co-flag{font-size:36px;}
+.co-country-name{font-family:'Unbounded',sans-serif;font-size:20px;font-weight:700;color:var(--text);}
+.co-tagline{font-size:9px;letter-spacing:2px;color:var(--muted);margin-top:4px;font-style:italic;}
+.co-close{background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.3);color:var(--accent);width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:14px;transition:all .2s;display:flex;align-items:center;justify-content:center;}
+.co-close:hover{background:rgba(255,107,53,0.25);transform:scale(1.1);}
+.co-tabs{display:flex;border-bottom:1px solid var(--border);background:rgba(0,10,25,0.5);flex-shrink:0;overflow-x:auto;}
+.co-tab{flex:1;min-width:76px;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:'Space Mono',monospace;font-size:8.5px;letter-spacing:1px;padding:13px 8px;cursor:pointer;transition:all .2s;text-transform:uppercase;white-space:nowrap;}
+.co-tab:hover{color:var(--text);background:rgba(0,200,255,0.04);}
+.co-tab.active{color:var(--glow);border-bottom-color:var(--glow);background:rgba(0,200,255,0.06);}
+.co-content{display:none;flex:1;overflow-y:auto;padding:24px;}
+.co-content.active{display:block;}
+.co-content#tab-map{padding:16px;display:flex;flex-direction:column;}
+
+/* CITY GRID */
+.city-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;}
+.city-card{background:rgba(0,20,50,0.7);border:1px solid rgba(0,180,230,0.12);border-radius:16px;overflow:hidden;cursor:pointer;transition:all .3s;animation:fadeUp .4s ease forwards;opacity:0;}
+.city-card:hover{border-color:rgba(0,200,255,0.35);transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,100,200,0.25);}
+.city-img-wrap{overflow:hidden;height:130px;position:relative;}
+.city-img{width:100%;height:130px;object-fit:cover;display:block;transition:transform .4s;}
+.city-card:hover .city-img{transform:scale(1.06);}
+.city-img-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,15,35,0.9);font-size:28px;opacity:0.4;}
+.city-card-body{padding:10px 12px;}
+.city-card-name{font-family:'Unbounded',sans-serif;font-size:11px;font-weight:600;color:var(--text);margin-bottom:3px;}
+.city-card-pop{font-size:8px;color:var(--muted);letter-spacing:1px;}
+.city-card-tags{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;}
+.city-tag{font-size:7px;letter-spacing:1px;background:rgba(0,200,255,0.08);border:1px solid rgba(0,200,255,0.15);border-radius:100px;padding:2px 6px;color:var(--glow);}
+.city-card-weather{display:flex;align-items:center;gap:6px;margin-top:7px;padding-top:7px;border-top:1px solid rgba(0,180,230,0.08);}
+.city-temp{font-family:'Unbounded',sans-serif;font-size:16px;font-weight:700;}
+.city-weather-desc{font-size:8px;color:var(--muted);letter-spacing:1px;}
+
+/* WEBCAMS */
+.webcam-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}
+.webcam-card{background:rgba(0,20,50,0.7);border:1px solid rgba(0,180,230,0.12);border-radius:16px;overflow:hidden;transition:all .3s;}
+.webcam-card:hover{border-color:rgba(0,200,255,0.3);box-shadow:0 8px 30px rgba(0,100,200,0.2);}
+.webcam-img{width:100%;height:180px;object-fit:cover;display:block;cursor:pointer;}
+.webcam-body{padding:12px 14px;}
+.webcam-title{font-family:'Unbounded',sans-serif;font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px;}
+.webcam-loc{font-size:8px;color:var(--muted);letter-spacing:1px;}
+.live-pill{display:inline-flex;align-items:center;gap:5px;background:rgba(0,255,100,0.08);border:1px solid rgba(0,255,100,0.2);border-radius:100px;padding:2px 8px;font-size:7px;color:var(--green);letter-spacing:2px;}
+.live-dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:blink 1.5s ease infinite;}
+.webcam-open-btn{display:block;width:100%;background:rgba(0,200,255,0.08);border:1px solid rgba(0,200,255,0.15);border-radius:8px;color:var(--glow);font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;padding:8px;cursor:pointer;margin-top:8px;transition:all .2s;text-decoration:none;text-align:center;}
+.webcam-open-btn:hover{background:rgba(0,200,255,0.15);}
+
+/* LIGHTBOX */
+.lightbox{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;}
+.lightbox.hidden{display:none;}
+.lb-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.9);backdrop-filter:blur(12px);}
+.lb-content{position:relative;z-index:1;background:rgba(3,12,30,0.98);border:1px solid rgba(0,180,230,0.2);border-radius:20px;overflow:hidden;max-width:900px;width:90vw;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 0 80px rgba(0,100,200,0.2);}
+.lb-close{position:absolute;top:16px;right:16px;z-index:2;background:rgba(255,107,53,0.15);border:1px solid rgba(255,107,53,0.3);color:var(--accent);width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:14px;transition:all .2s;display:flex;align-items:center;justify-content:center;}
+.lb-close:hover{background:rgba(255,107,53,0.3);transform:scale(1.1);}
+.lb-info{padding:20px 28px;}
+.lb-city-name{font-family:'DM Serif Display',serif;font-size:28px;color:var(--text);margin-bottom:6px;}
+.lb-city-desc{font-size:11px;color:var(--muted);line-height:1.8;margin-bottom:16px;}
+.lb-city-stats{display:flex;gap:10px;flex-wrap:wrap;}
+.lb-stat{background:rgba(0,200,255,0.06);border:1px solid rgba(0,200,255,0.12);border-radius:8px;padding:8px 14px;}
+.lb-stat-label{font-size:7px;letter-spacing:2px;color:var(--muted);}
+.lb-stat-val{font-family:'Unbounded',sans-serif;font-size:12px;font-weight:700;margin-top:2px;}
+
+/* CULTURE */
+.wctx-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.wctx-card{background:rgba(0,20,50,0.7);border:1px solid rgba(0,180,230,0.12);border-radius:12px;padding:12px 14px;}
+.wctx-label{font-size:7px;letter-spacing:2px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;}
+.wctx-value{font-family:'Unbounded',sans-serif;font-size:10px;font-weight:700;color:var(--text);line-height:1.3;}
+.wctx-tip{background:rgba(0,85,204,0.1);border:1px solid rgba(0,85,204,0.22);border-radius:12px;padding:12px 15px;font-size:10px;line-height:1.8;color:var(--text);margin-top:10px;}
+.wctx-sub{font-size:8px;color:var(--muted);letter-spacing:1px;margin-top:5px;}
+.fact-list{display:flex;flex-direction:column;gap:8px;margin-bottom:4px;}
+.fact-item{background:rgba(0,20,50,0.6);border:1px solid rgba(0,180,230,0.1);border-radius:12px;overflow:hidden;cursor:pointer;animation:fadeUp .4s ease both;transition:border-color .2s;}
+.fact-item:hover{border-color:rgba(0,200,255,0.3);}
+.fact-item:nth-child(1){animation-delay:.05s}.fact-item:nth-child(2){animation-delay:.10s}.fact-item:nth-child(3){animation-delay:.15s}.fact-item:nth-child(4){animation-delay:.20s}.fact-item:nth-child(5){animation-delay:.25s}
+.fact-header{display:flex;align-items:flex-start;gap:12px;padding:12px 15px;font-size:11px;line-height:1.7;color:var(--text);}
+.fact-emoji{font-size:18px;flex-shrink:0;margin-top:1px;}
+.fact-title{font-family:'Unbounded',sans-serif;font-size:8px;font-weight:700;color:var(--glow);margin-bottom:3px;letter-spacing:1px;}
+.fact-preview{flex:1;font-size:10px;}
+.fact-arrow{margin-left:8px;font-size:10px;color:var(--muted);transition:transform .25s;flex-shrink:0;margin-top:4px;}
+.fact-item.open .fact-arrow{transform:rotate(90deg);}
+.fact-body{display:none;padding:0 15px 13px 46px;font-size:10px;line-height:1.8;color:rgba(180,210,255,0.85);border-top:1px solid rgba(0,180,230,0.08);padding-top:10px;}
+.fact-item.open .fact-body{display:block;}
+.news-card{background:rgba(0,20,50,0.6);border:1px solid rgba(0,180,230,0.1);border-radius:12px;overflow:hidden;cursor:pointer;transition:border-color .2s;animation:fadeUp .4s ease both;}
+.news-card:hover{border-color:rgba(0,200,255,0.3);}
+.news-header{display:flex;align-items:flex-start;gap:12px;padding:12px 15px;}
+.news-emoji{font-size:20px;flex-shrink:0;margin-top:1px;}
+.news-preview{flex:1;}
+.news-headline{font-family:'Unbounded',sans-serif;font-size:9px;font-weight:700;color:var(--text);margin-bottom:3px;letter-spacing:0.5px;line-height:1.4;}
+.news-source{font-size:7px;letter-spacing:2px;color:var(--glow2);text-transform:uppercase;}
+.news-body{display:none;padding:0 15px 12px 46px;font-size:10px;line-height:1.8;color:rgba(180,210,255,0.85);border-top:1px solid rgba(0,180,230,0.08);padding-top:10px;}
+.news-card.news-open .news-body{display:block;}
+.news-card .fact-arrow,.news-card.news-open .fact-arrow{transition:transform .25s;}
+.news-card.news-open .fact-arrow{transform:rotate(90deg)!important;}
+.comments-wrap{background:rgba(0,10,28,0.7);border:1px solid rgba(0,180,230,0.12);border-radius:16px;padding:20px;}
+.comments-title{font-family:'Unbounded',sans-serif;font-size:11px;font-weight:700;color:var(--text);margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.comment-count{font-size:8px;color:var(--muted);letter-spacing:2px;font-family:'Space Mono',monospace;font-weight:400;}
+.comment-form{display:flex;flex-direction:column;gap:9px;margin-bottom:18px;}
+.cinput{background:rgba(0,20,50,0.7);border:1px solid rgba(0,180,230,0.15);border-radius:10px;padding:10px 13px;color:var(--text);font-family:'Space Mono',monospace;font-size:10px;outline:none;transition:border-color .2s;width:100%;}
+.cinput:focus{border-color:rgba(0,200,255,0.4);}
+.cinput::placeholder{color:var(--muted);}
+.ctextarea{resize:vertical;min-height:68px;}
+.csubmit{background:linear-gradient(135deg,var(--glow2),var(--glow));border:none;border-radius:10px;padding:10px 18px;color:#03070f;font-family:'Space Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .2s;align-self:flex-end;}
+.csubmit:hover{transform:scale(1.04);}
+.comments-list{display:flex;flex-direction:column;gap:10px;}
+.comment-card{background:rgba(0,20,50,0.5);border:1px solid rgba(0,180,230,0.08);border-radius:11px;padding:12px 14px;animation:fadeUp .3s ease;}
+.comment-meta{display:flex;align-items:center;gap:9px;margin-bottom:7px;}
+.comment-av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--glow2),var(--glow));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#03070f;flex-shrink:0;}
+.comment-name{font-family:'Unbounded',sans-serif;font-size:9px;font-weight:700;color:var(--text);}
+.comment-time{font-size:7px;color:var(--muted);letter-spacing:1px;margin-top:1px;}
+.comment-text{font-size:10px;line-height:1.7;color:rgba(200,220,255,0.85);}
+.ad-strip{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;}
+.ad-card{background:rgba(0,10,28,0.8);border:1px solid rgba(0,180,230,0.1);border-radius:14px;padding:13px 15px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .25s;text-decoration:none;color:inherit;}
+.ad-card:hover{border-color:rgba(0,200,255,0.3);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,100,200,0.15);}
+.ad-logo{font-size:26px;flex-shrink:0;}
+.ad-name{font-family:'Unbounded',sans-serif;font-size:9px;font-weight:700;color:var(--text);margin-bottom:3px;}
+.ad-tag{font-size:8px;color:var(--muted);letter-spacing:0.5px;line-height:1.5;}
+.ad-label{font-size:7px;letter-spacing:2px;color:rgba(255,107,53,0.6);margin-top:4px;text-transform:uppercase;}
+
+/* QUIZ */
+.quiz-wrap{background:rgba(0,10,28,0.8);border:1px solid rgba(0,200,255,0.15);border-radius:18px;padding:24px;margin-bottom:20px;}
+.quiz-title{font-family:'Unbounded',sans-serif;font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.quiz-subtitle{font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:18px;}
+.quiz-progress-bar{height:3px;background:rgba(0,200,255,0.1);border-radius:2px;margin-bottom:18px;overflow:hidden;}
+.quiz-progress-fill{height:100%;background:linear-gradient(90deg,var(--glow2),var(--glow));border-radius:2px;transition:width .4s ease;}
+.quiz-q{font-family:'DM Serif Display',serif;font-size:17px;color:var(--text);margin-bottom:18px;line-height:1.4;}
+.quiz-options{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.quiz-opt{background:rgba(0,25,55,0.7);border:1px solid rgba(0,180,230,0.15);border-radius:12px;padding:13px 14px;cursor:pointer;font-size:11px;line-height:1.4;color:var(--text);transition:all .2s;text-align:left;}
+.quiz-opt:hover:not(:disabled){border-color:rgba(0,200,255,0.4);background:rgba(0,45,90,0.7);transform:translateY(-1px);}
+.quiz-opt.correct{background:rgba(0,255,157,0.12);border-color:var(--green)!important;color:var(--green);}
+.quiz-opt.wrong{background:rgba(255,50,50,0.1);border-color:#ff4444!important;color:#ff6b6b;}
+.quiz-opt.reveal{opacity:.55;}
+.quiz-opt:disabled{cursor:default;}
+.quiz-feedback{margin-top:14px;padding:12px 16px;border-radius:10px;font-size:10px;line-height:1.6;display:none;}
+.quiz-feedback.correct-fb{background:rgba(0,255,157,0.08);border:1px solid rgba(0,255,157,0.25);color:var(--green);display:block;}
+.quiz-feedback.wrong-fb{background:rgba(255,50,50,0.06);border:1px solid rgba(255,50,50,0.2);color:#ff6b6b;display:block;}
+.quiz-hint-btn{background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.25);border-radius:100px;padding:6px 14px;color:var(--accent);font-family:'Space Mono',monospace;font-size:8px;letter-spacing:1px;cursor:pointer;margin-top:12px;transition:all .2s;}
+.quiz-hint-btn:hover{background:rgba(255,107,53,0.2);}
+.quiz-next{display:none;margin-top:14px;width:100%;padding:12px;background:linear-gradient(135deg,var(--glow2),var(--glow));border:none;border-radius:10px;color:#03070f;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:2px;cursor:pointer;transition:all .2s;}
+.quiz-next:hover{transform:scale(1.02);}
+.quiz-score{text-align:center;padding:24px 0;display:none;}
+.quiz-score-num{font-family:'Unbounded',sans-serif;font-size:52px;font-weight:900;background:linear-gradient(135deg,#fff 20%,var(--glow) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.quiz-score-msg{font-size:11px;color:var(--muted);margin-top:8px;letter-spacing:1px;}
+.quiz-restart{margin-top:16px;padding:12px 24px;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.25);border-radius:100px;color:var(--glow);font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;cursor:pointer;transition:all .2s;}
+.quiz-restart:hover{background:rgba(0,200,255,0.18);transform:scale(1.04);}
+
+/* ANIMATIONS */
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes ospin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes dollWave{0%,100%{transform:rotate(0deg) scale(1)}20%{transform:rotate(-12deg) scale(1.08)}40%{transform:rotate(8deg) scale(1.04)}60%{transform:rotate(-8deg) scale(1.06)}80%{transform:rotate(5deg) scale(1.02)}}
+@keyframes dollJump{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px) scale(1.15) rotate(10deg)}}
+.city-card:nth-child(1){animation-delay:.00s}.city-card:nth-child(2){animation-delay:.05s}
+.city-card:nth-child(3){animation-delay:.10s}.city-card:nth-child(4){animation-delay:.15s}
+.city-card:nth-child(5){animation-delay:.20s}.city-card:nth-child(6){animation-delay:.25s}
+.city-card:nth-child(7){animation-delay:.30s}.city-card:nth-child(8){animation-delay:.35s}
+.city-card:nth-child(9){animation-delay:.40s}.city-card:nth-child(10){animation-delay:.45s}
+::-webkit-scrollbar{width:3px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(0,200,255,.14);border-radius:2px;}
+@media(max-width:800px){
+  .app{grid-template-columns:1fr;grid-template-rows:52px 1fr auto;}
+  .wpanel{border-left:none;border-top:1px solid var(--border);max-height:280px;}
+  .sel-bar{min-width:260px;}.co-panel{width:98vw;height:95vh;}
+  .city-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));}
+  .quiz-options{grid-template-columns:1fr;}
+  #mascotPopup{bottom:16px;right:16px;}
+  .mascot-bubble{max-width:240px;}
+  .wctx-grid{grid-template-columns:1fr 1fr;}
+  .ad-strip{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+<canvas id="starfield"></canvas>
+<div id="tip"></div>
+
+<!-- MASCOT -->
+<div id="mascotPopup">
+  <div class="mascot-bubble">
+    <div class="mascot-greeting" id="mascotGreeting">Hello!</div>
+    <div class="mascot-meaning" id="mascotMeaning">Welcome!</div>
+    <div class="mascot-typed" id="mascotTyped"><span class="mascot-cursor"></span></div>
+    <div class="mascot-buttons" id="mascotBtns" style="display:none">
+      <button class="mascot-btn mascot-btn-yes" onclick="openExplorerFromMascot()">🌍 YES, EXPLORE!</button>
+      <button class="mascot-btn mascot-btn-no" onclick="dismissMascot()">Maybe later</button>
+    </div>
+  </div>
+  <div class="mascot-doll" id="mascotDoll" onclick="openExplorerFromMascot()" title="Click me to explore!">
+    <svg viewBox="0 0 80 110" xmlns="http://www.w3.org/2000/svg" width="72" height="99"><ellipse cx="40" cy="22" rx="14" ry="16" fill="#FDBCB4"/><rect x="27" y="38" width="26" height="28" rx="8" fill="#4169E1"/><rect x="16" y="40" width="12" height="20" rx="5" fill="#4169E1"/><rect x="52" y="40" width="12" height="20" rx="5" fill="#4169E1"/><ellipse cx="21" cy="62" rx="5" ry="5" fill="#FDBCB4"/><ellipse cx="59" cy="62" rx="5" ry="5" fill="#FDBCB4"/><rect x="31" y="66" width="10" height="24" rx="4" fill="#1a1a1a"/><rect x="43" y="66" width="10" height="24" rx="4" fill="#1a1a1a"/><text x="22" y="28" font-size="26">🌍</text></svg>
+  </div>
+</div>
+
+<!-- EXPLORER OVERLAY -->
+<div id="cityOverlay" class="city-overlay hidden">
+  <div class="co-backdrop"></div>
+  <div class="co-panel">
+    <div class="co-header">
+      <div class="co-country-info">
+        <span id="co-flag" class="co-flag"></span>
+        <div>
+          <div id="co-country-name" class="co-country-name"></div>
+          <div id="co-tagline" class="co-tagline"></div>
+        </div>
+      </div>
+      <button class="co-close" onclick="closeCityOverlay()">✕</button>
+    </div>
+    <div class="co-tabs">
+      <button class="co-tab active" onclick="switchTab('culture')">CULTURE</button>
+      <button class="co-tab" onclick="switchTab('cities')">CITIES</button>
+      <button class="co-tab" onclick="switchTab('webcams')">WEBCAMS</button>
+      <button class="co-tab" onclick="switchTab('weather')">WEATHER</button>
+      <button class="co-tab" onclick="switchTab('map')">MAP</button>
+      <button class="co-tab" onclick="switchTab('flights')">FLIGHTS</button>
+    </div>
+    <div id="tab-culture" class="co-content active"></div>
+    <div id="tab-cities"  class="co-content"></div>
+    <div id="tab-webcams" class="co-content"></div>
+    <div id="tab-weather" class="co-content"></div>
+    <div id="tab-map"     class="co-content" style="padding:16px;display:flex;flex-direction:column"></div>
+    <div id="tab-flights" class="co-content"></div>
+    <div id="tab-videos"  class="co-content"></div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div id="lightbox" class="lightbox hidden">
+  <div class="lb-backdrop" onclick="closeLightbox()"></div>
+  <div class="lb-content">
+    <button class="lb-close" onclick="closeLightbox()">✕</button>
+    <div id="lb-img-wrap"></div>
+    <div class="lb-info">
+      <div id="lb-city-name" class="lb-city-name"></div>
+      <div id="lb-city-desc" class="lb-city-desc"></div>
+      <div id="lb-city-stats" class="lb-city-stats"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div class="app">
+  <header>
+    <div class="brand">WEATHER <em>//</em> GLOBE <span style="font-size:9px;color:var(--muted);letter-spacing:2px">v6.0</span></div>
+    <div class="hstatus">
+      <div class="dlive"></div>
+      <span>LIVE DATA · CULTURE · NEWS · QUIZZES · FLIGHTS · MAP</span>
+      <span class="version-badge">🌍 + ✈️ + 🗺️</span>
+    </div>
+  </header>
+  <div class="globe-section">
+    <div class="globe-wrap">
+      <div class="orbit o1"></div><div class="orbit o2"></div><div class="orbit o3"></div>
+      <canvas id="globe"></canvas>
+    </div>
+    <div class="sel-bar">
+      <div class="sel-lbl ph" id="selLbl">↻ rotate &amp; click a country</div>
+      <button class="gbtn explore-btn" onclick="openExplorer()">🌍 EXPLORE</button>
+      <button class="gbtn" onclick="getWeather()">GET WEATHER</button>
+    </div>
+    <div class="hint">drag to rotate · click to select · <span style="color:var(--accent)">gold pins = full culture + city data</span></div>
+  </div>
+  <div class="wpanel" id="panel">
+    <div class="slbl">// weather data</div>
+    <div class="empty">
+      <div class="eico">🌍</div>
+      <p>Spin the globe and<br>click any country.<br><br>A country mascot<br>will greet you with<br>news, culture, trivia<br>&amp; travel info!</p>
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/geo.js"></script>
+<script src="js/cities.js"></script>
+<script src="js/culture.js"></script>
+
+<script>
+const CTRS=[
+  {n:"United States",f:"🇺🇸",la:38.7,lo:-97.0,cy:"New York"},
+  {n:"Canada",f:"🇨🇦",la:56.1,lo:-106.3,cy:"Toronto"},
+  {n:"Mexico",f:"🇲🇽",la:23.6,lo:-102.5,cy:"Mexico City"},
+  {n:"Brazil",f:"🇧🇷",la:-14.2,lo:-51.9,cy:"São Paulo"},
+  {n:"Argentina",f:"🇦🇷",la:-38.4,lo:-63.6,cy:"Buenos Aires"},
+  {n:"Colombia",f:"🇨🇴",la:4.57,lo:-74.2,cy:"Bogotá"},
+  {n:"Chile",f:"🇨🇱",la:-35.6,lo:-71.5,cy:"Santiago"},
+  {n:"Peru",f:"🇵🇪",la:-12.0,lo:-77.0,cy:"Lima"},
+  {n:"Venezuela",f:"🇻🇪",la:10.5,lo:-66.9,cy:"Caracas"},
+  {n:"Ecuador",f:"🇪🇨",la:-0.23,lo:-78.5,cy:"Quito"},
+  {n:"United Kingdom",f:"🇬🇧",la:51.5,lo:-0.12,cy:"London"},
+  {n:"France",f:"🇫🇷",la:46.2,lo:2.2,cy:"Paris"},
+  {n:"Germany",f:"🇩🇪",la:51.1,lo:10.4,cy:"Berlin"},
+  {n:"Spain",f:"🇪🇸",la:40.4,lo:-3.7,cy:"Madrid"},
+  {n:"Italy",f:"🇮🇹",la:41.8,lo:12.5,cy:"Rome"},
+  {n:"Portugal",f:"🇵🇹",la:39.3,lo:-8.2,cy:"Lisbon"},
+  {n:"Netherlands",f:"🇳🇱",la:52.1,lo:5.3,cy:"Amsterdam"},
+  {n:"Sweden",f:"🇸🇪",la:60.1,lo:18.6,cy:"Stockholm"},
+  {n:"Norway",f:"🇳🇴",la:60.4,lo:8.4,cy:"Oslo"},
+  {n:"Denmark",f:"🇩🇰",la:55.7,lo:12.6,cy:"Copenhagen"},
+  {n:"Finland",f:"🇫🇮",la:60.2,lo:24.9,cy:"Helsinki"},
+  {n:"Poland",f:"🇵🇱",la:52.2,lo:21.0,cy:"Warsaw"},
+  {n:"Ukraine",f:"🇺🇦",la:50.4,lo:30.5,cy:"Kyiv"},
+  {n:"Russia",f:"🇷🇺",la:55.7,lo:37.6,cy:"Moscow"},
+  {n:"Turkey",f:"🇹🇷",la:39.9,lo:32.8,cy:"Ankara"},
+  {n:"Greece",f:"🇬🇷",la:37.9,lo:23.7,cy:"Athens"},
+  {n:"Switzerland",f:"🇨🇭",la:46.9,lo:7.4,cy:"Bern"},
+  {n:"Austria",f:"🇦🇹",la:48.2,lo:16.4,cy:"Vienna"},
+  {n:"Belgium",f:"🇧🇪",la:50.8,lo:4.35,cy:"Brussels"},
+  {n:"Romania",f:"🇷🇴",la:44.4,lo:26.1,cy:"Bucharest"},
+  {n:"Hungary",f:"🇭🇺",la:47.5,lo:19.0,cy:"Budapest"},
+  {n:"Czech Republic",f:"🇨🇿",la:50.1,lo:14.4,cy:"Prague"},
+  {n:"Croatia",f:"🇭🇷",la:45.8,lo:15.9,cy:"Zagreb"},
+  {n:"Egypt",f:"🇪🇬",la:30.0,lo:31.2,cy:"Cairo"},
+  {n:"Nigeria",f:"🇳🇬",la:9.08,lo:7.4,cy:"Abuja"},
+  {n:"South Africa",f:"🇿🇦",la:-33.9,lo:18.4,cy:"Cape Town"},
+  {n:"Kenya",f:"🇰🇪",la:-1.28,lo:36.8,cy:"Nairobi"},
+  {n:"Morocco",f:"🇲🇦",la:33.9,lo:-6.8,cy:"Rabat"},
+  {n:"Ethiopia",f:"🇪🇹",la:9.02,lo:38.7,cy:"Addis Ababa"},
+  {n:"Tanzania",f:"🇹🇿",la:-6.79,lo:39.2,cy:"Dar es Salaam"},
+  {n:"Ghana",f:"🇬🇭",la:5.55,lo:-0.19,cy:"Accra"},
+  {n:"India",f:"🇮🇳",la:28.6,lo:77.2,cy:"New Delhi"},
+  {n:"China",f:"🇨🇳",la:39.9,lo:116.4,cy:"Beijing"},
+  {n:"Japan",f:"🇯🇵",la:35.7,lo:139.7,cy:"Tokyo"},
+  {n:"South Korea",f:"🇰🇷",la:37.5,lo:127.0,cy:"Seoul"},
+  {n:"Indonesia",f:"🇮🇩",la:-6.2,lo:106.8,cy:"Jakarta"},
+  {n:"Thailand",f:"🇹🇭",la:13.75,lo:100.5,cy:"Bangkok"},
+  {n:"Vietnam",f:"🇻🇳",la:21.0,lo:105.8,cy:"Hanoi"},
+  {n:"Malaysia",f:"🇲🇾",la:3.14,lo:101.7,cy:"Kuala Lumpur"},
+  {n:"Philippines",f:"🇵🇭",la:14.6,lo:121.0,cy:"Manila"},
+  {n:"Singapore",f:"🇸🇬",la:1.35,lo:103.8,cy:"Singapore"},
+  {n:"Pakistan",f:"🇵🇰",la:33.7,lo:73.1,cy:"Islamabad"},
+  {n:"Bangladesh",f:"🇧🇩",la:23.7,lo:90.4,cy:"Dhaka"},
+  {n:"Saudi Arabia",f:"🇸🇦",la:24.6,lo:46.7,cy:"Riyadh"},
+  {n:"UAE",f:"🇦🇪",la:25.2,lo:55.2,cy:"Dubai"},
+  {n:"Iran",f:"🇮🇷",la:35.7,lo:51.4,cy:"Tehran"},
+  {n:"Iraq",f:"🇮🇶",la:33.3,lo:44.4,cy:"Baghdad"},
+  {n:"Israel",f:"🇮🇱",la:31.8,lo:35.2,cy:"Jerusalem"},
+  {n:"Australia",f:"🇦🇺",la:-33.8,lo:151.2,cy:"Sydney"},
+  {n:"New Zealand",f:"🇳🇿",la:-36.8,lo:174.7,cy:"Auckland"},
+  {n:"Cuba",f:"🇨🇺",la:23.1,lo:-82.4,cy:"Havana"},
+  {n:"Ireland",f:"🇮🇪",la:53.3,lo:-6.25,cy:"Dublin"},
+];
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLightbox();closeCityOverlay();dismissMascot();}});
+</script>
+
+<script src="js/globe.js"></script>
+<script src="js/weather.js"></script>
+<script src="js/flights.js"></script>
+<script src="js/map.js"></script>
+<script src="js/videos.js"></script>
+
+<script>
+// MASCOT SYSTEM
+let mascotTimeout=null,mascotCountry=null;
+function showMascot(country){
+  mascotCountry=country;
+  const cd=getCultureData(country.n);
+  const doll=getCountryDoll(country.n,country.f);
+  const dollEl=document.getElementById('mascotDoll');
+  dollEl.innerHTML=doll;
+  dollEl.style.width='72px'; dollEl.style.height='auto';
+  document.getElementById('mascotGreeting').textContent=cd.greeting||('Welcome to '+country.n+'!');
+  document.getElementById('mascotMeaning').textContent=cd.greetingMeaning||'';
+  const typedMsg=`Discover ${country.n}'s culture, latest news${cd.game?', trivia quiz':''} and more?`;
+  document.getElementById('mascotBtns').style.display='none';
+  document.getElementById('mascotTyped').innerHTML='<span class="mascot-cursor"></span>';
+  const popup=document.getElementById('mascotPopup');
+  popup.classList.remove('hiding');popup.classList.add('visible');
+  clearTimeout(mascotTimeout);
+  mascotTimeout=setTimeout(()=>typeMessage(typedMsg,0),400);
+}
+function typeMessage(msg,i){
+  const el=document.getElementById('mascotTyped');
+  if(i<=msg.length){el.innerHTML=msg.slice(0,i)+'<span class="mascot-cursor"></span>';mascotTimeout=setTimeout(()=>typeMessage(msg,i+1),25);}
+  else{document.getElementById('mascotBtns').style.display='flex';}
+}
+function dismissMascot(){
+  clearTimeout(mascotTimeout);
+  const p=document.getElementById('mascotPopup');
+  p.classList.add('hiding');setTimeout(()=>p.classList.remove('visible','hiding'),400);
+}
+function openExplorerFromMascot(){dismissMascot();setTimeout(openExplorer,250);}
+
+// EXPLORER
+const TAB_NAMES=['culture','cities','webcams','weather','map','flights','videos'];
+let currentSelC=null,currentData=null;
+async function openExplorer(){
+  if(!selC){flashPill();return;}
+  currentSelC=selC;currentData=getCountryData(selC.n);
+  const cd=getCultureData(selC.n);
+  document.getElementById('co-flag').textContent=selC.f;
+  document.getElementById('co-country-name').textContent=selC.n;
+  document.getElementById('co-tagline').textContent=cd.tagline||'';
+  TAB_NAMES.forEach(n=>{const el=document.getElementById(`tab-${n}`);el._rendered=false;el.innerHTML='';});
+  switchTab('culture');
+  document.getElementById('cityOverlay').classList.remove('hidden');
+  document.body.style.overflow='hidden';
+}
+function closeCityOverlay(){
+  document.getElementById('cityOverlay').classList.add('hidden');
+  document.body.style.overflow='';
+  if(typeof leafletMap!=='undefined'&&leafletMap){try{leafletMap.remove();}catch(e){}leafletMap=null;}
+}
+document.querySelector('.co-backdrop').addEventListener('click',closeCityOverlay);
+function switchTab(name){
+  document.querySelectorAll('.co-tab').forEach((t,i)=>t.classList.toggle('active',TAB_NAMES[i]===name));
+  document.querySelectorAll('.co-content').forEach(c=>c.classList.remove('active'));
+  const el=document.getElementById(`tab-${name}`);
+  el.classList.add('active');
+  if(!el._rendered){
+    el._rendered=true;
+    switch(name){
+      case 'culture': renderCultureTab(el,currentSelC);break;
+      case 'cities':  renderCitiesTab(el,currentData,currentSelC);break;
+      case 'webcams': renderWebcamsTab(el,currentData,currentSelC);break;
+      case 'weather': renderWeatherTab(el,currentSelC);break;
+      case 'map':     renderMapTab(el,currentSelC);break;
+      case 'flights': renderFlightsTab(el,currentSelC.n);break;
+      case 'videos':  renderVideosTab(el,currentSelC);break;
+    }
+  }
+  if(name==='map'&&typeof leafletMap!=='undefined'&&leafletMap)setTimeout(()=>leafletMap.invalidateSize(),120);
+}
+
+// CULTURE TAB
+function renderCultureTab(el,country){
+  const cd=getCultureData(country.n);
+  const wc=cd.weatherContext||{};
+  const news=getCountryNews(country.n);
+  const doll=getCountryDoll(country.n,country.f);
+  let factsHTML='';
+  if(cd.facts&&cd.facts.length){
+    factsHTML=cd.facts.map(f=>`
+      <div class="fact-item" onclick="this.classList.toggle('open')">
+        <div class="fact-header">
+          <span class="fact-emoji">${f.emoji||'💡'}</span>
+          <div class="fact-preview"><div class="fact-title">${f.title||''}</div><span>${f.body?f.body.substring(0,90)+'…':''}</span></div>
+          <span class="fact-arrow">▶</span>
+        </div>
+        <div class="fact-body">${f.body||''}</div>
+      </div>`).join('');
+  }
+  const ADS=[
+    {logo:'🦉',name:'Duolingo',tag:'Learn the local language — free!',url:'https://www.duolingo.com',label:'LANGUAGE LEARNING'},
+    {logo:'📚',name:'Wikipedia',tag:`Deep dive into ${country.n}'s history`,url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(country.n),label:'FREE KNOWLEDGE'},
+    {logo:'🛒',name:'Amazon',tag:'Travel gear &amp; guidebooks',url:'https://www.amazon.com/s?k='+encodeURIComponent(country.n+' travel guide'),label:'TRAVEL ESSENTIALS'},
+    {logo:'🌐',name:'Lonely Planet',tag:'Official travel guides &amp; tips',url:'https://www.lonelyplanet.com/'+country.n.toLowerCase().replace(/\s+/g,'-'),label:'TRAVEL GUIDES'},
+    {logo:'🎓',name:'Khan Academy',tag:'History &amp; culture lessons — free',url:'https://www.khanacademy.org',label:'FREE EDUCATION'},
+    {logo:'📸',name:'Unsplash',tag:`Stunning free photos of ${country.n}`,url:'https://unsplash.com/s/photos/'+encodeURIComponent(country.n),label:'FREE PHOTOGRAPHY'},
+  ];
+  el.innerHTML=`
+    <div style="display:flex;flex-direction:column;gap:20px">
+      <!-- Country header with SVG doll -->
+      <div style="display:flex;align-items:center;gap:20px;background:rgba(0,15,40,0.6);border:1px solid rgba(0,200,255,0.15);border-radius:18px;padding:20px 24px">
+        <div style="flex-shrink:0;animation:dollWave 2s ease-in-out infinite;transform-origin:bottom center;filter:drop-shadow(0 4px 16px rgba(0,200,255,0.3))">${doll}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Unbounded',sans-serif;font-size:22px;font-weight:900;color:var(--text);margin-bottom:2px">${country.f} ${country.n}</div>
+          <div style="font-size:10px;letter-spacing:2px;color:var(--muted);font-style:italic;margin-bottom:12px;line-height:1.5">${cd.tagline||''}</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:16px;color:var(--glow);margin-bottom:2px">"${cd.greeting||'Hello!'}"</div>
+          <div style="font-size:9px;color:var(--muted);letter-spacing:1px">${cd.greetingMeaning||''}</div>
+        </div>
+      </div>
+      <!-- Latest News -->
+      <div>
+        <div class="slbl" style="margin-bottom:10px">// latest news &amp; updates — tap to expand</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${news.map((item,i)=>`
+            <div class="news-card" onclick="this.classList.toggle('news-open')" style="animation-delay:${i*0.07}s">
+              <div class="news-header">
+                <span class="news-emoji">${item.emoji}</span>
+                <div class="news-preview"><div class="news-headline">${item.headline}</div><div class="news-source">${item.source}</div></div>
+                <span class="fact-arrow">▶</span>
+              </div>
+              <div class="news-body">${item.body}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+      <!-- Climate -->
+      <div>
+        <div class="slbl" style="margin-bottom:10px">// climate &amp; when to visit</div>
+        <div class="wctx-grid">
+          <div class="wctx-card"><div class="wctx-label">Climate</div><div class="wctx-value" style="font-size:9px">${wc.climate||'—'}</div></div>
+          <div class="wctx-card"><div class="wctx-label">Summer avg</div><div class="wctx-value">${wc.avgSummer||'—'}</div></div>
+          <div class="wctx-card"><div class="wctx-label">Winter avg</div><div class="wctx-value">${wc.avgWinter||'—'}</div></div>
+        </div>
+        <div class="wctx-tip">💡 ${wc.tip||'Always check local conditions before your trip.'}
+          <div class="wctx-sub">${wc.bestTime?'🗓 BEST TIME: '+wc.bestTime:''} ${wc.rainyDays?' | 🌧 '+wc.rainyDays:''}</div>
+        </div>
+      </div>
+      <!-- Fun facts -->
+      ${factsHTML?`<div><div class="slbl" style="margin-bottom:10px">// did you know? — tap each to expand</div><div class="fact-list">${factsHTML}</div></div>`:''}
+      <!-- Quiz -->
+      ${cd.game?renderQuizHTML(cd.game,country):''}
+      <!-- Partner links / ads -->
+      <div>
+        <div class="slbl" style="margin-bottom:10px">// explore more about ${country.n}</div>
+        <div class="ad-strip">
+          ${ADS.slice(0,4).map(ad=>`
+            <a href="${ad.url}" target="_blank" rel="noopener" class="ad-card">
+              <div class="ad-logo">${ad.logo}</div>
+              <div><div class="ad-name">${ad.name}</div><div class="ad-tag">${ad.tag}</div><div class="ad-label">▸ ${ad.label}</div></div>
+            </a>`).join('')}
+        </div>
+        <div class="ad-strip" style="margin-top:10px">
+          ${ADS.slice(4,6).map(ad=>`
+            <a href="${ad.url}" target="_blank" rel="noopener" class="ad-card">
+              <div class="ad-logo">${ad.logo}</div>
+              <div><div class="ad-name">${ad.name}</div><div class="ad-tag">${ad.tag}</div><div class="ad-label">▸ ${ad.label}</div></div>
+            </a>`).join('')}
+        </div>
+      </div>
+      <!-- Comments -->
+      <div>
+        <div class="slbl" style="margin-bottom:10px">// traveller notes &amp; tips</div>
+        ${buildCommentsHTML(country.n)}
+      </div>
+    </div>`;
+  if(cd.game)initQuiz(cd.game);
+}
+
+// COMMENTS
+const _cStore={};
+function _getComments(c){
+  if(!_cStore[c]){_cStore[c]=[
+    {name:'TravellerMike 🌍',text:'Absolutely stunning place — went last summer and loved every moment!',time:'2 days ago'},
+    {name:'WanderlustSue ✈️',text:"Don't miss the local markets — the food here is incredible!",time:'1 week ago'},
+  ];}
+  return _cStore[c];
+}
+function buildCommentsHTML(cn){
+  const comments=_getComments(cn);
+  const safe=cn.replace(/'/g,"\\'");
+  return`<div class="comments-wrap">
+    <div class="comments-title">💬 Traveller Notes <span class="comment-count">${comments.length} COMMENTS</span></div>
+    <div class="comment-form">
+      <input class="cinput" id="cName" placeholder="Your name (optional)" maxlength="40">
+      <textarea class="cinput ctextarea" id="cText" placeholder="Share tips about ${cn}…" maxlength="400" rows="3"></textarea>
+      <button class="csubmit" onclick="submitComment('${safe}')">✉️ POST</button>
+    </div>
+    <div class="comments-list" id="commentsList">${_renderCards(comments)}</div>
+  </div>`;
+}
+function _renderCards(c){return c.map(x=>`
+  <div class="comment-card"><div class="comment-meta"><div class="comment-av">${x.name.charAt(0).toUpperCase()}</div>
+  <div><div class="comment-name">${x.name}</div><div class="comment-time">${x.time}</div></div></div>
+  <div class="comment-text">${x.text}</div></div>`).join('');}
+function submitComment(cn){
+  const name=(document.getElementById('cName')?.value||'').trim();
+  const text=(document.getElementById('cText')?.value||'').trim();
+  if(!text){const ta=document.getElementById('cText');if(ta){ta.style.borderColor='rgba(255,107,53,0.5)';setTimeout(()=>ta.style.borderColor='',1000);}return;}
+  if(!_cStore[cn])_getComments(cn);
+  _cStore[cn].unshift({name:name||'Anonymous Traveller',text,time:'Just now'});
+  document.getElementById('cName').value='';document.getElementById('cText').value='';
+  const list=document.getElementById('commentsList');if(list)list.innerHTML=_renderCards(_cStore[cn]);
+  const ce=document.querySelector('.comment-count');if(ce)ce.textContent=_cStore[cn].length+' COMMENTS';
+}
+
+// QUIZ ENGINE
+let quizState={};
+function renderQuizHTML(game,country){
+  return`<div>
+    <div class="slbl" style="margin-bottom:10px">// culture quiz</div>
+    <div class="quiz-wrap" id="quizWrap">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">
+        <div class="quiz-title">${game.title}</div>
+        <button onclick="dismissQuiz()" style="background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.2);color:var(--accent);font-family:'Space Mono',monospace;font-size:7px;letter-spacing:1px;border-radius:100px;padding:5px 11px;cursor:pointer;flex-shrink:0;margin-left:10px">SKIP ✕</button>
+      </div>
+      <div class="quiz-subtitle">TEST YOUR KNOWLEDGE · ${game.questions.length} QUESTIONS · HINTS AVAILABLE</div>
+      <div class="quiz-progress-bar"><div class="quiz-progress-fill" id="qProgress" style="width:0%"></div></div>
+      <div id="quizBody"></div>
+      <div id="quizScore" class="quiz-score"></div>
+    </div>
+  </div>`;
+}
+function dismissQuiz(){
+  const w=document.getElementById('quizWrap');
+  if(w)w.innerHTML='<div class="no-content" style="padding:24px"><div class="nc-icon">🎮</div><p>Quiz skipped.<br><button onclick="initQuiz(quizState.game)" class="quiz-restart" style="margin-top:12px">↺ START QUIZ</button></p></div>';
+}
+function initQuiz(game){quizState={game,current:0,score:0,answered:false,hintShown:false};renderQuestion();}
+function renderQuestion(){
+  const{game,current}=quizState;
+  const q=game.questions[current];
+  const pct=(current/game.questions.length)*100;
+  const pEl=document.getElementById('qProgress');
+  if(pEl)pEl.style.width=pct+'%';
+  const body=document.getElementById('quizBody');
+  if(!body)return;
+  quizState.answered=false;quizState.hintShown=false;
+  body.innerHTML=`
+    <div class="quiz-q">${q.q}</div>
+    <div class="quiz-options">${q.a.map((opt,i)=>`<button class="quiz-opt" onclick="answerQuiz(${i})" id="qo${i}">${opt}</button>`).join('')}</div>
+    <div><button class="quiz-hint-btn" id="hintBtn" onclick="showHint()">💡 Hint — remind me later?</button></div>
+    <div id="qHint" style="display:none;margin-top:10px;padding:10px 14px;background:rgba(255,107,53,0.08);border:1px solid rgba(255,107,53,0.2);border-radius:10px;font-size:10px;color:var(--accent);line-height:1.7"></div>
+    <div id="qFeedback" class="quiz-feedback"></div>
+    <button id="qNext" class="quiz-next" onclick="nextQuestion()">${current<game.questions.length-1?'NEXT QUESTION →':'SEE SCORE →'}</button>`;
+}
+function showHint(){
+  const q=quizState.game.questions[quizState.current];
+  const hint=q.hint||q.explain||'Think carefully — the answer relates to something distinctive about this country!';
+  const hEl=document.getElementById('qHint');
+  if(hEl){hEl.style.display='block';hEl.textContent='💡 Hint: '+hint.substring(0,130)+(hint.length>130?'…':'');}
+  const hBtn=document.getElementById('hintBtn');if(hBtn)hBtn.style.display='none';
+  quizState.hintShown=true;
+}
+function answerQuiz(chosen){
+  if(quizState.answered)return;
+  quizState.answered=true;
+  const q=quizState.game.questions[quizState.current];
+  const correct=q.correct===chosen;
+  if(correct)quizState.score+=quizState.hintShown?0.5:1;
+  q.a.forEach((_,i)=>{
+    const btn=document.getElementById(`qo${i}`);if(!btn)return;
+    btn.disabled=true;
+    if(i===q.correct)btn.classList.add('correct');
+    else if(i===chosen)btn.classList.add('wrong');
+    else btn.classList.add('reveal');
+  });
+  const hBtn=document.getElementById('hintBtn');if(hBtn)hBtn.style.display='none';
+  const fb=document.getElementById('qFeedback');
+  if(fb){
+    fb.className='quiz-feedback '+(correct?'correct-fb':'wrong-fb');
+    const explain=q.explain||q.explanation||null;
+    fb.innerHTML=explain
+      ?(correct?'✅ Correct!'+(quizState.hintShown?' (hint used — ½ point)':' Full point!')+'<br>':'❌ Not quite. The answer was <strong>'+q.a[q.correct]+'</strong>.<br>')+explain
+      :(correct?'✅ Correct! Well done!':'❌ Not quite — the answer was: "'+q.a[q.correct]+'"');
+  }
+  const nxt=document.getElementById('qNext');if(nxt)nxt.style.display='block';
+}
+function nextQuestion(){quizState.current++;if(quizState.current>=quizState.game.questions.length)showScore();else renderQuestion();}
+function showScore(){
+  const{score,game}=quizState;
+  const max=game.questions.length,pct=Math.round((score/max)*100);
+  const pEl=document.getElementById('qProgress');if(pEl)pEl.style.width='100%';
+  document.getElementById('quizBody').style.display='none';
+  const sc=document.getElementById('quizScore');sc.style.display='block';
+  const medal=pct===100?'🏆':pct>=75?'🥈':pct>=50?'🥉':'📚';
+  const msgs=['Keep exploring!','Good effort!','Nice work!','Excellent!','Perfect score!'];
+  sc.innerHTML=`<div style="font-size:52px;margin-bottom:8px">${medal}</div>
+    <div class="quiz-score-num">${Math.round(score)}/${max}</div>
+    <div class="quiz-score-msg">${msgs[Math.min(Math.floor((pct/100)*(msgs.length-1)),msgs.length-1)]}</div>
+    <div style="font-size:9px;color:var(--muted);margin-top:6px;letter-spacing:1px">${pct}% correct</div>
+    <button class="quiz-restart" onclick="initQuiz(quizState.game)">↺ PLAY AGAIN</button>`;
+}
+
+// CITIES TAB
+function renderCitiesTab(el,data,country){
+  if(!data?.cities?.length){
+    el.innerHTML=`<div class="no-content"><div class="nc-icon">🏙</div><p>No city data for ${country.n} yet.<br>Try the Weather or Map tabs.</p></div>`;
+    return;
+  }
+  el.innerHTML=`<div style="margin-bottom:14px;font-size:9px;color:var(--muted);letter-spacing:1px">📍 ${data.cities.length} cities in ${country.n} — click any card for full details &amp; weather</div>
+    <div class="city-grid">${data.cities.map((c,i)=>`
+      <div class="city-card" onclick="openCityLightbox(${i})">
+        <div class="city-img-wrap">
+          <div class="city-img-loading">🏙</div>
+          <img class="city-img" src="${c.photo}" alt="${c.name}" loading="lazy"
+               onload="this.previousElementSibling.style.display='none'"
+               onerror="this.src='https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=600&q=80'">
+        </div>
+        <div class="city-card-body">
+          <div class="city-card-name">${c.name}</div>
+          <div class="city-card-pop">👥 ${c.population}</div>
+          <div class="city-card-tags">${c.tags.map(t=>`<span class="city-tag">${t}</span>`).join('')}</div>
+          <div class="city-card-weather" id="cw-${i}"><span style="font-size:16px">⏳</span><div><div class="city-weather-desc" style="font-size:8px;color:var(--muted)">Loading...</div></div></div>
+        </div>
+      </div>`).join('')}
+    </div>`;
+  data.cities.forEach((c,i)=>{
+    fetchWeatherData(c.lat,c.lon).then(w=>{
+      const we=document.getElementById(`cw-${i}`);
+      if(we)we.innerHTML=`<span style="font-size:20px">${w.icon}</span><div><div class="city-temp">${w.temp_c}°C</div><div class="city-weather-desc">${w.condition} · 💧${w.humidity}%</div></div>`;
+    }).catch(()=>{
+      const we=document.getElementById(`cw-${i}`);
+      if(we)we.innerHTML=`<span style="font-size:9px;color:var(--muted)">No weather data</span>`;
+    });
+  });
+}
+function openCityLightbox(i){
+  const city=currentData?.cities[i];if(!city)return;
+  document.getElementById('lb-city-name').textContent=city.name;
+  document.getElementById('lb-city-desc').textContent=city.desc;
+  document.getElementById('lb-city-stats').innerHTML=`
+    <div class="lb-stat"><div class="lb-stat-label">POPULATION</div><div class="lb-stat-val">${city.population}</div></div>
+    ${city.bestFor?`<div class="lb-stat" style="border-color:rgba(255,107,53,0.3);background:rgba(255,107,53,0.06)"><div class="lb-stat-label" style="color:var(--accent)">BEST FOR</div><div class="lb-stat-val" style="font-size:10px;color:var(--accent)">${city.bestFor}</div></div>`:''}
+    ${city.tags.map(t=>`<div class="lb-stat"><div class="lb-stat-label">TAG</div><div class="lb-stat-val" style="font-size:11px">${t}</div></div>`).join('')}`;
+  document.getElementById('lb-img-wrap').innerHTML=`
+    <div style="position:relative">
+      <img src="${city.photo.replace('w=600','w=900')}" alt="${city.name}"
+           style="width:100%;height:360px;object-fit:cover;display:block"
+           onerror="this.src='https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=900&q=80'">
+      <div style="position:absolute;inset:0;background:linear-gradient(transparent 50%,rgba(3,7,15,0.9));pointer-events:none"></div>
+      <div style="position:absolute;bottom:16px;left:20px;font-family:'Unbounded',sans-serif;font-size:22px;font-weight:900;color:white;text-shadow:0 2px 8px rgba(0,0,0,0.8)">${city.name}</div>
+    </div>`;
+  document.getElementById('lightbox').classList.remove('hidden');
+}
+function closeLightbox(){document.getElementById('lightbox').classList.add('hidden');}
+
+// WEBCAMS TAB
+function renderWebcamsTab(el,data,country){
+  if(!data?.webcams?.length){
+    el.innerHTML=`<div class="no-content"><div class="nc-icon">📷</div><p>No webcams for ${country.n}.<br><a href="https://www.windy.com/webcams" target="_blank" style="color:var(--glow)">Browse on Windy →</a></p></div>`;
+    return;
+  }
+  el.innerHTML=`<div class="webcam-grid">${data.webcams.map(cam=>`
+    <div class="webcam-card">
+      <div style="position:relative;overflow:hidden;height:180px">
+        <img class="webcam-img" src="${cam.img}" alt="${cam.title}" loading="lazy"
+             onclick="window.open('${cam.link}','_blank')"
+             onerror="this.src='https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=640&q=70'">
+        <div style="position:absolute;top:10px;left:10px"><div class="live-pill"><div class="live-dot"></div>LIVE PREVIEW</div></div>
+      </div>
+      <div class="webcam-body">
+        <div class="webcam-title">${cam.title}</div>
+        <div class="webcam-loc">📍 ${cam.location}</div>
+        <a href="${cam.link}" target="_blank" class="webcam-open-btn">📷 OPEN LIVE CAM →</a>
+      </div>
+    </div>`).join('')}
+    <div class="webcam-card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:12px;text-align:center;border-style:dashed">
+      <div style="font-size:32px">🌐</div>
+      <div class="webcam-title">Find More Live Cams</div>
+      <a href="https://www.windy.com/webcams" target="_blank" class="webcam-open-btn">BROWSE WINDY →</a>
+      <a href="https://www.earthcam.com" target="_blank" class="webcam-open-btn" style="margin-top:-4px">EARTHCAM →</a>
+    </div>
+  </div>`;
+}
+
+// WEATHER TAB
+async function renderWeatherTab(el,country){
+  el.innerHTML=`<div class="loading"><div class="spin"></div><p>LOADING WEATHER...</p></div>`;
+  try{
+    const w=await fetchWeatherData(country.la,country.lo);
+    const fc=w.forecast.map(d=>`<div class="fd"><div class="fdd">${d.day}</div><div class="fdi">${d.icon}</div><div class="fdt">${d.high}°</div><div class="fdl">${d.low}°</div></div>`).join('');
+    el.innerHTML=`<div style="display:flex;flex-direction:column;gap:16px">
+      <div class="main-card">
+        <div class="wico">${w.icon}</div>
+        <div class="wtemp">${w.temp_c}°<span style="font-size:26px;font-weight:200">C</span></div>
+        <div class="wdesc">${w.condition}</div>
+        <div class="wcity">${w.city}, ${country.n} ${country.f}</div>
+      </div>
+      <div class="sgrid">
+        <div class="scard"><div class="slb">Feels Like</div><div class="svl">${w.feels_like}<span class="sun">°C</span></div></div>
+        <div class="scard"><div class="slb">Humidity</div><div class="svl">${w.humidity}<span class="sun">%</span></div></div>
+        <div class="scard"><div class="slb">Wind</div><div class="svl">${w.wind_kmh}<span class="sun"> km/h</span></div></div>
+        <div class="scard"><div class="slb">Pressure</div><div class="svl">${w.pressure_hpa}<span class="sun"> hPa</span></div></div>
+        <div class="scard"><div class="slb">Visibility</div><div class="svl">${w.visibility_km}<span class="sun"> km</span></div></div>
+        <div class="scard"><div class="slb">Wind Dir</div><div class="svl">${w.wind_dir}</div></div>
+      </div>
+      <div class="slbl">// 5-day forecast</div>
+      <div class="frow">${fc}</div>
+      <div class="ai-badge" style="align-self:center"><div class="ai-dot"></div>OPENWEATHERMAP · LIVE DATA</div>
+    </div>`;
+  }catch(e){el.innerHTML=`<div class="errc"><p>⚠ ${e.message}</p></div>`;}
+}
+
+// After globe pick, show mascot
+window._afterPick=function(c){clearTimeout(window._mascotTimer);window._mascotTimer=setTimeout(()=>showMascot(c),600);};
+</script>
+
+<!-- STARFIELD -->
+<script>
+(function(){
+  const c=document.getElementById('starfield'),g=c.getContext('2d');
+  c.width=window.innerWidth;c.height=window.innerHeight;
+  for(let i=0;i<380;i++){const x=Math.random()*c.width,y=Math.random()*c.height,r=Math.random()*1.3,a=Math.random()*.8+.1;g.beginPath();g.arc(x,y,r,0,Math.PI*2);g.fillStyle=`rgba(180,220,255,${a})`;g.fill();}
+  for(let i=0;i<12;i++){const x=Math.random()*c.width,y=Math.random()*c.height;g.beginPath();g.arc(x,y,1.8,0,Math.PI*2);g.fillStyle='rgba(220,240,255,0.9)';g.fill();g.strokeStyle='rgba(180,220,255,0.3)';g.lineWidth=0.5;g.beginPath();g.moveTo(x-6,y);g.lineTo(x+6,y);g.stroke();g.beginPath();g.moveTo(x,y-6);g.lineTo(x,y+6);g.stroke();}
+  window.addEventListener('resize',()=>{c.width=window.innerWidth;c.height=window.innerHeight;});
+})();
+</script>
+</body>
+</html>
