@@ -61,7 +61,14 @@ async function fetchWeatherData(lat, lon) {
   };
 }
 
-async function getWeather() {
+async function getWeather(){
+
+  
+  gtag('event', 'get_weather', {
+    country: selC ? selC.n : 'none'
+  });
+
+  
   if (!selC) { flashPill(); return; }
   const panel = document.getElementById('panel');
   panel.innerHTML = `<div class="slbl">// fetching</div><div class="loading"><div class="spin"></div><p>LOADING WEATHER...</p></div>`;

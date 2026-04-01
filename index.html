@@ -3,6 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- ✅ GOOGLE ANALYTICS -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-37X22KVC17"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-37X22KVC17');
+</script>
+
 <title>Weather Globe v3.0 — World Explorer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Unbounded:wght@200;300;400;700;900&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
@@ -370,6 +381,17 @@ let currentSelC  = null;
 let currentData  = null;
 
 async function openExplorer() {
+
+  // ✅ Google Analytics
+  gtag('event', 'click_explore', {
+    country: selC ? selC.n : 'none'
+  });
+
+  gtag('event', 'page_view', {
+    page_title: 'Country Explorer',
+    page_location: window.location.href + '#' + (selC ? selC.n : '')
+  });
+
   if (!selC) { flashPill(); return; }
   currentSelC = selC;
   currentData = getCountryData(selC.n);
