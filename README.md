@@ -53,4 +53,4 @@ An interactive weather dashboard that lets users spin a 3D globe, click any coun
 
 1. Clone the repository
    ```bash
-   git clone https://github.com/your-username/weather-globe.git
+   git clone https://github.com/Fmendoza1999/DashWeather1.git
